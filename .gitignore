@@ -1,0 +1,9 @@
+*.pyc
+__pycache__/
+logs/
+tmp/
+*.log
+*.env
+keyfile.json
+iotvenv/
+airflow/packages

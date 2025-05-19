@@ -1,0 +1,4 @@
+pyspark==3.3.0
+google-cloud-bigquery==2.34.4
+pandas==1.5.3
+pyarrow==10.0.1
