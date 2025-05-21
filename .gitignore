@@ -7,3 +7,4 @@ tmp/
 keyfile.json
 iotvenv/
 airflow/packages
+secrets/

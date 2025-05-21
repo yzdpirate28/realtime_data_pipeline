@@ -37,10 +37,13 @@ machine_schema = StructType([
 ])
 
 def main():
-    # Create Spark session
+    # Create Spark session with BigQuery connector configuration
     spark = SparkSession \
         .builder \
         .appName("MachineDataProcessor") \
+        .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0,org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0") \
+        .config("spark.hadoop.google.cloud.auth.service.account.enable", "true") \
+        .config("spark.hadoop.google.cloud.auth.service.account.json.keyfile", os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/secrets/bigquery-key.json")) \
         .getOrCreate()
         
     # Set log level
@@ -127,21 +130,38 @@ def main():
         count("*").alias("record_count")
     )
     
-    # Output 3: BigQuery for aggregated metrics
-    # Note: In a real-world scenario, you would need to set up Google Cloud credentials
-    # and create a BigQuery dataset and table
+    # Prepare the data for BigQuery (flatten window struct)
+    bq_ready_df = aggregated_df \
+        .select(
+            col("window.start").alias("window_start"),
+            col("window.end").alias("window_end"),
+            col("machine_id"),
+            col("location"),
+            col("avg_temperature"),
+            col("max_temperature"),
+            col("avg_vibration"),
+            col("max_vibration"),
+            col("avg_power"),
+            col("total_defects"),
+            col("record_count")
+        )
     
-    # In this demo, we'll simulate by writing to memory sink (in a real project, use BigQuery connector)
-    bigquery_query = aggregated_df \
-    .writeStream \
-    .format("bigquery") \
-    .outputMode("append") \
-    .option("table", "your-project-id.your_dataset.your_table") \
-    .option("temporaryGcsBucket", "your-temporary-gcs-bucket") \
-    .option("checkpointLocation", "/tmp/bigquery_checkpoint") \
-    .trigger(processingTime="1 minute") \
-    .start()
-
+    # Get BigQuery project, dataset and table from environment variables or use defaults
+    project_id = os.environ.get("BQ_PROJECT_ID", "your-project-id")
+    dataset_id = os.environ.get("BQ_DATASET_ID", "machine_sensor_data")
+    table_id = os.environ.get("BQ_TABLE_ID", "aggregated_metrics")
+    temp_bucket = os.environ.get("BQ_TEMP_BUCKET", "your-temporary-gcs-bucket")
+    
+    # Output 3: BigQuery for aggregated metrics
+    bigquery_query = bq_ready_df \
+        .writeStream \
+        .format("bigquery") \
+        .option("table", f"{project_id}.{dataset_id}.{table_id}") \
+        .option("temporaryGcsBucket", temp_bucket) \
+        .option("checkpointLocation", "/tmp/checkpoints/bigquery") \
+        .outputMode("append") \
+        .trigger(processingTime="1 minute") \
+        .start()
     
     # Keep the Spark application running until manually terminated
     try:

@@ -1,11 +1,19 @@
-IoT Data Pipeline Project
+# IoT Data Pipeline Project
+
 A scalable data pipeline for processing IoT sensor data from MQTT to BigQuery using Apache Airflow, Kafka, and Spark.
-Architecture
+
+## 🛠️ Architecture
+
+```
 HiveMQ MQTT Broker → MQTT Consumer → Kafka → Spark → BigQuery
-                           ↑
-                      Airflow DAG
-                   (orchestration)
-Project Structure
+                            ↑
+                       Airflow DAG
+                    (orchestration)
+```
+
+## 📁 Project Structure
+
+```
 iot-data-pipeline/
 ├── README.md                      # Project documentation
 ├── docker-compose.yml             # Main Docker Compose configuration
@@ -24,50 +32,87 @@ iot-data-pipeline/
 │   │   └── process_data.py        # Spark script for ETL and forwarding to BigQuery
 │   └── requirements.txt           # Spark Python dependencies
 └── logs/                          # Logs directory for debugging
-Prerequisites
+```
 
-Docker and Docker Compose
-Google Cloud account with BigQuery enabled (for production use)
-HiveMQ Cloud account (already set up in the provided configuration)
+## ✅ Prerequisites
 
-Setup Instructions
-1. Clone the repository
-bashgit clone https://github.com/yourusername/iot-data-pipeline.git
-cd iot-data-pipeline
-2. Create necessary directories
-bashmkdir -p logs airflow/dags spark/app scripts
-3. Set up environment variables
-Edit the .env file with your HiveMQ credentials (the provided ones are already set up).
-4. Build and start the containers
-bashdocker-compose up -d
-5. Check if services are running
-bashdocker-compose ps
-6. Run the MQTT publisher (in a separate terminal)
-bash# Run the publisher locally
-pip install paho-mqtt
-python scripts/mqtt_publisher.py
-Monitoring and Management
+* Docker and Docker Compose
+* Google Cloud account with BigQuery enabled
+* HiveMQ Cloud account (already set up in the provided configuration)
 
-Airflow UI: http://localhost:8080 (username: admin, password: admin)
-Spark UI: http://localhost:4040 (when Spark jobs are running)
+## 🚀 Setup Instructions
 
-Development Notes
+1. **Clone the repository**
 
-The MQTT consumer subscribes to HiveMQ topics and forwards data to Kafka
-Airflow DAG runs every 5 minutes to monitor Kafka and trigger Spark jobs
-Spark processes data in streaming mode and prepares it for BigQuery
+   ```bash
+   git clone https://github.com/yourusername/iot-data-pipeline.git
+   cd iot-data-pipeline
+   ```
 
-Production Considerations
-For a production environment:
+2. **Create necessary directories**
 
-Set up proper authentication for all services
-Configure BigQuery credentials using service accounts
-Implement proper monitoring and alerting
-Scale Kafka and Spark clusters based on data volume
-Add data quality checks and error handling
+   ```bash
+   mkdir -p logs airflow/dags spark/app scripts
+   ```
 
-Troubleshooting
+3. **Set up environment variables**
 
-Check container logs with docker-compose logs -f [service_name]
-Ensure all required ports are open and not used by other applications
-Verify connectivity to HiveMQ Cloud broker
+   Edit the `.env` file with your HiveMQ credentials
+   *(The provided ones may already be configured).*
+
+4. **Build and start the containers**
+
+   ```bash
+   docker-compose up -d
+   ```
+
+5. **Check if services are running**
+
+   ```bash
+   docker-compose ps
+   ```
+
+6. **Run the MQTT publisher (in a separate terminal)**
+
+   ```bash
+   pip install paho-mqtt
+   python scripts/mqtt_publisher.py
+   ```
+
+## 📊 Monitoring and Management
+
+* **Airflow UI**: [http://localhost:8080](http://localhost:8080)
+  *(Username: `admin`, Password: `admin`)*
+
+* **Spark UI**: [http://localhost:4040](http://localhost:4040)
+  *(when Spark jobs are running)*
+
+## 🧐 Development Notes
+
+* The MQTT consumer subscribes to HiveMQ topics and forwards data to Kafka.
+* Airflow DAG runs every 5 minutes to monitor Kafka and trigger Spark jobs.
+* Spark processes data in streaming mode and sends results to BigQuery.
+
+## 🌐 Production Considerations
+
+* Use proper authentication and secrets management
+* Configure BigQuery access using service account keys
+* Add monitoring, logging, and alerting for all components
+* Scale Kafka and Spark services based on data volume
+* Include data validation and error handling mechanisms
+
+## 🛠️ Troubleshooting
+
+* Check logs:
+
+  ```bash
+  docker-compose logs -f [service_name]
+  ```
+
+* Ensure required ports are free and not used by other services
+
+* Confirm connectivity to HiveMQ Cloud broker
+
+---
+
+Feel free to contribute or raise issues to improve the pipeline!
