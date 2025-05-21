@@ -1,3 +1,4 @@
+version: '3'
 
 services:
   # MQTT Consumer service that forwards to Kafka
@@ -16,6 +17,7 @@ services:
       - ./scripts:/app
     networks:
       - data-pipeline-network
+
   mqtt-consumer:
     build:
       context: .
@@ -63,6 +65,7 @@ services:
       - zookeeper
     networks:
       - data-pipeline-network
+
   postgres:
     image: postgres:13
     environment:
@@ -74,9 +77,6 @@ services:
     networks:
       - data-pipeline-network
 
-
-  
-
   # Airflow service
   airflow:
     build:
@@ -84,17 +84,23 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - postgres
-
     ports:
       - "8080:8080"
     environment:
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor
       - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - AIRFLOW__CORE__LOAD_EXAMPLES=False
-
+      # Add BigQuery environment variables
+      - BQ_PROJECT_ID=${BQ_PROJECT_ID}
+      - BQ_DATASET_ID=${BQ_DATASET_ID:-machine_sensor_data}
+      - BQ_TABLE_ID=${BQ_TABLE_ID:-aggregated_metrics}
+      - BQ_TEMP_BUCKET=${BQ_TEMP_BUCKET}
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/bigquery-key.json
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./logs:/opt/airflow/logs
+      # Mount the service account key
+      - ./secrets/bigquery-key.json:/secrets/bigquery-key.json:ro
     command: >
       bash -c "
         airflow db upgrade &&
@@ -114,12 +120,22 @@ services:
     volumes:
       - ./spark/app:/opt/spark/app
       - ./logs:/opt/spark/logs
-    command: bash -c "sleep 10 && spark-submit --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,com.google.cloud:google-cloud-bigquery:2.20.0 /opt/spark/app/process_data.py"
+      # Mount the service account key
+      - ./secrets/bigquery-key.json:/secrets/bigquery-key.json:ro
+    command: >
+      bash -c "sleep 10 && 
+      spark-submit \
+      --packages org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0,com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0 \
+      --conf spark.hadoop.google.cloud.auth.service.account.enable=true \
+      --conf spark.hadoop.google.cloud.auth.service.account.json.keyfile=/secrets/bigquery-key.json \
+      /opt/spark/app/process_data.py"
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - GOOGLE_APPLICATION_CREDENTIALS=/opt/spark/app/credentials.json
-    depends_on:
-      - kafka
+      - BQ_PROJECT_ID=${BQ_PROJECT_ID}
+      - BQ_DATASET_ID=${BQ_DATASET_ID:-machine_sensor_data}
+      - BQ_TABLE_ID=${BQ_TABLE_ID:-aggregated_metrics}
+      - BQ_TEMP_BUCKET=${BQ_TEMP_BUCKET}
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/bigquery-key.json
     networks:
       - data-pipeline-network
 

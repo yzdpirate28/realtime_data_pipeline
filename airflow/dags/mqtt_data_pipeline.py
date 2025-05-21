@@ -21,7 +21,7 @@ dag = DAG(
     'mqtt_data_pipeline',
     default_args=default_args,
     description='A DAG for processing MQTT sensor data',
-    schedule_interval=timedelta(seconds=1),  # Run every second
+    schedule_interval=timedelta(seconds=100),  # Run every 100 seconds
     catchup=False,
 )
 
@@ -54,7 +54,11 @@ def monitor_kafka_topics():
                 logging.info(f"Kafka topic '{target_topic}' end offsets: {end_offsets}")
 
                 # Get a sample message (non-blocking)
-                records = consumer.poll(timeout_ms=1000)
+                records = consumer.poll(timeout_ms=10000, max_records=30)   
+                if records:
+                    logging.info(f"Sample messages from topic '{target_topic}': {records}")
+                else:
+                    logging.info(f"No messages available in topic '{target_topic}'")
                 for tp, msgs in records.items():
                     for msg in msgs:
                         try:
