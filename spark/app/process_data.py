@@ -42,14 +42,20 @@ def main():
         .builder \
         .appName("MachineDataProcessor") \
         .config("spark.jars.packages", "com.google.cloud.spark:spark-bigquery-with-dependencies_2.12:0.32.0,org.apache.spark:spark-sql-kafka-0-10_2.12:3.3.0") \
-        .config("spark.hadoop.google.cloud.auth.service.account.enable", "true") \
-        .config("spark.hadoop.google.cloud.auth.service.account.json.keyfile", os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/secrets/bigquery-key.json")) \
+        .config("spark.sql.adaptive.enabled", "false") \
+        .config("spark.sql.adaptive.coalescePartitions.enabled", "false") \
         .getOrCreate()
         
     # Set log level
     spark.sparkContext.setLogLevel("WARN")
     
+    # Set Hadoop configuration for Google Cloud authentication
+    hadoop_conf = spark.sparkContext._jsc.hadoopConfiguration()
+    hadoop_conf.set("google.cloud.auth.service.account.enable", "true")
+    hadoop_conf.set("google.cloud.auth.service.account.json.keyfile", os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", "/secrets/bigquery-key.json"))
+    
     print("APPLICATION STARTED")
+    print(f"Google Application Credentials: {os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')}")
     
     # Read from Kafka
     kafka_df = spark \
@@ -146,11 +152,23 @@ def main():
             col("record_count")
         )
     
-    # Get BigQuery project, dataset and table from environment variables or use defaults
-    project_id = os.environ.get("BQ_PROJECT_ID", "your-project-id")
+    # Get BigQuery project, dataset and table from environment variables
+    project_id = os.environ.get("BQ_PROJECT_ID")
     dataset_id = os.environ.get("BQ_DATASET_ID", "machine_sensor_data")
     table_id = os.environ.get("BQ_TABLE_ID", "aggregated_metrics")
-    temp_bucket = os.environ.get("BQ_TEMP_BUCKET", "your-temporary-gcs-bucket")
+    temp_bucket = os.environ.get("BQ_TEMP_BUCKET")
+    
+    # Validate required environment variables
+    if not project_id:
+        raise ValueError("BQ_PROJECT_ID environment variable is required")
+    if not temp_bucket:
+        raise ValueError("BQ_TEMP_BUCKET environment variable is required")
+    
+    print(f"BigQuery Configuration:")
+    print(f"  Project ID: {project_id}")
+    print(f"  Dataset ID: {dataset_id}")
+    print(f"  Table ID: {table_id}")
+    print(f"  Temp Bucket: {temp_bucket}")
     
     # Output 3: BigQuery for aggregated metrics
     bigquery_query = bq_ready_df \
@@ -158,6 +176,10 @@ def main():
         .format("bigquery") \
         .option("table", f"{project_id}.{dataset_id}.{table_id}") \
         .option("temporaryGcsBucket", temp_bucket) \
+        .option("project", project_id) \
+        .option("parentProject", project_id) \
+        .option("credentialsFile", os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")) \
+        .option("writeMethod", "indirect") \
         .option("checkpointLocation", "/tmp/checkpoints/bigquery") \
         .outputMode("append") \
         .trigger(processingTime="1 minute") \
